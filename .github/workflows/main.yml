@@ -10,7 +10,6 @@ jobs:
       matrix:
         env:
           - ARCH: arm64
-          - ARCH: x86_64
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -32,7 +31,6 @@ jobs:
       matrix:
         env:
           - ARCH: arm64
-          - ARCH: x86_64
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -53,8 +51,6 @@ jobs:
       matrix:
         env:
           - ARCH: arm64
-          - ARCH: x86_64
-          - ARCH: armv7
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
