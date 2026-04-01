@@ -8,19 +8,29 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          # Install the generic versions available in Ubuntu 22.04
+          # Standard LLVM/Clang for Ubuntu 22.04 (Compatible with v0.11.0)
           sudo apt-get install -y cmake bison flex libelf-dev libpcap-dev \
                                  llvm-dev libclang-dev zlib1g-dev libbfd-dev \
                                  libreadline-dev libiberty-dev
 
-      - name: Download bpftrace v0.11.0 Source
+      - name: Checkout and Downgrade
         run: |
-          curl -LO https://github.com/bpftrace/bpftrace/archive/refs/tags/v0.11.0.zip
-          unzip v0.11.0.zip
-          echo "SOURCE_DIR=$(pwd)/bpftrace-0.11.0" >> $GITHUB_ENV
+          # 1. Clone the repo (we do this manually to ensure we get the tags)
+          git clone https://github.com/bpftrace/bpftrace.git
+          cd bpftrace
+          
+          # 2. Fetch all historical tags
+          git fetch --all --tags
+          
+          # 3. Checkout the specific version for Kernel 4.19
+          git checkout v0.11.0
+          
+          # 4. Save path for next steps
+          echo "SOURCE_DIR=$(pwd)" >> $GITHUB_ENV
 
       - name: Setup NDK r21e
         run: |
+          # Using r21e because it's the contemporary NDK for a 2020 build
           curl -LO https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
           unzip -q android-ndk-r21e-linux-x86_64.zip
           echo "NDK_PATH=$(pwd)/android-ndk-r21e" >> $GITHUB_ENV
@@ -30,7 +40,7 @@ jobs:
           cd ${{ env.SOURCE_DIR }}
           mkdir build && cd build
           
-          # Use the NDK CMake toolchain to target Android ARM64
+          # Cross-compile using the NDK toolchain
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
@@ -40,7 +50,7 @@ jobs:
             -DBUILD_TESTING=OFF \
             -DALLOW_UNSAFE_PROBE=ON
           
-          # Build using all CPU cores
+          # Build the binary
           make -j$(nproc) bpftrace
 
       - name: Upload bpftrace Binary
