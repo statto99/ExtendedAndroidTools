@@ -1,24 +1,22 @@
-name: Build bpftrace v0.11.0 (Static)
-on: workflow_dispatch
+name: Build bpftools archives
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
-  build:
+  build_everything:
     runs-on: ubuntu-22.04
     steps:
-      - name: Install Build Dependencies
+      - name: Checkout Wrapper Repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          # Use the default LLVM/Clang versions for Ubuntu 22.04
-          sudo apt-get install -y cmake iperf3 libtool-bin bison flex \
-                                 libelf-dev libpcap-dev libiberty-dev \
-                                 llvm-dev libclang-dev zlib1g-dev \
-                                 libbfd-dev libreadline-dev
-
-      - name: Download bpftrace v0.11.0 Source
-        run: |
-          curl -LO https://github.com/bpftrace/bpftrace/archive/refs/tags/v0.11.0.zip
-          unzip v0.11.0.zip
-          echo "SOURCE_DIR=$(pwd)/bpftrace-0.11.0" >> $GITHUB_ENV
+          sudo apt-get install -y linux-tools-$(uname -r) linux-tools-generic \
+                                 libbpf-dev libpcap-dev llvm-dev libclang-dev \
+                                 zlib1g-dev libelf-dev cmake bison flex
 
       - name: Setup NDK r21e
         run: |
@@ -26,28 +24,26 @@ jobs:
           unzip -q android-ndk-r21e-linux-x86_64.zip
           echo "NDK_PATH=$(pwd)/android-ndk-r21e" >> $GITHUB_ENV
 
-      - name: Configure and Build
+      - name: Downgrade bpftrace to v0.11.0
         run: |
-          cd ${{ env.SOURCE_DIR }}
-          
-          # Fix: Bpftrace 0.11 might need help finding LLVM on newer Ubuntu
-          # We create a build directory and run CMake
-          mkdir build && cd build
-          
-          cmake .. \
-            -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-29 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DSTATIC_LINKING=ON \
-            -DBUILD_TESTING=OFF \
-            -DALLOW_UNSAFE_PROBE=ON \
-            -DVENDOR_GTEST=ON
-          
-          make -j$(nproc) bpftrace
+          # Find where the repo keeps the bpftrace source (usually 'external/bpftrace')
+          BPF_DIR=$(find . -maxdepth 3 -name "bpftrace" -type d | head -n 1)
+          cd "$BPF_DIR"
+          git fetch --tags
+          git checkout v0.11.0
+          cd -
 
-      - name: Upload bpftrace Binary
+      - name: Build via Wrapper Makefile
+        run: |
+          # The wrapper's Makefile knows how to find its own libbcc
+          make bpftrace \
+            NDK_PATH=${{ env.NDK_PATH }} \
+            NDK_ARCH=arm64 \
+            STATIC_LINKING=true
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bpftrace-v0.11.0-arm64-static
-          path: ${{ env.SOURCE_DIR }}/build/src/bpftrace
+          name: bpftrace-v0.11-android-arm64
+          # The output is usually in 'out/' or 'bin/' depending on the wrapper
+          path: out/android/arm64/bin/bpftrace
