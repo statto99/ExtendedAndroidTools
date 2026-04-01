@@ -8,8 +8,9 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
+          # We need LLVM 14 (default for Ubuntu 22.04)
           sudo apt-get install -y cmake bison flex libelf-dev libpcap-dev \
-                                 llvm-dev libclang-dev zlib1g-dev libbfd-dev \
+                                 llvm-14-dev libclang-14-dev zlib1g-dev libbfd-dev \
                                  libreadline-dev libiberty-dev
 
       - name: Setup NDK r21e
@@ -26,9 +27,8 @@ jobs:
           git checkout v0.11.0
           echo "BPF_SRC=$(pwd)" >> $GITHUB_ENV
 
-      - name: Clone BCC (Required Dependency)
+      - name: Clone BCC
         run: |
-          # Bpftrace v0.11 works best with BCC v0.16.0 - v0.17.0 era
           git clone --recursive https://github.com/iovisor/bcc.git
           cd bcc
           git checkout v0.17.0
@@ -38,23 +38,23 @@ jobs:
         run: |
           cd ${{ env.BCC_SRC }}
           mkdir build && cd build
+          # Added LLVM_DIR and CMAKE_FIND_ROOT_PATH_MODE flags
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-29 \
             -DCMAKE_BUILD_TYPE=Release \
             -DENABLE_EXAMPLES=OFF \
-            -DENABLE_TESTS=OFF
+            -DENABLE_TESTS=OFF \
+            -DLLVM_DIR=/usr/lib/llvm-14/lib/cmake/llvm \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH
           make -j$(nproc) bcc-static
-          # We need these paths for bpftrace
-          echo "LIBBCC_PATH=$(pwd)/src/cpp/libbcc.a" >> $GITHUB_ENV
 
       - name: Build bpftrace (Android)
         run: |
           cd ${{ env.BPF_SRC }}
           mkdir build && cd build
           
-          # We manually point bpftrace to the BCC we just built
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
@@ -64,7 +64,9 @@ jobs:
             -DBUILD_TESTING=OFF \
             -DALLOW_UNSAFE_PROBE=ON \
             -DLIBBCC_LIBRARIES=${{ env.BCC_SRC }}/build/src/cpp/libbcc.a \
-            -DLIBBCC_INCLUDE_DIRS=${{ env.BCC_SRC }}/src/cpp
+            -DLIBBCC_INCLUDE_DIRS=${{ env.BCC_SRC }}/src/cpp \
+            -DLLVM_DIR=/usr/lib/llvm-14/lib/cmake/llvm \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH
           
           make -j$(nproc) bpftrace
 
