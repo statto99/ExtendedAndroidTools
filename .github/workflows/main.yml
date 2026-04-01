@@ -1,4 +1,4 @@
-name: Build bpftrace v0.11.0 (Final Fix)
+name: Build bpftrace v0.11.0 (Direct Source)
 on: workflow_dispatch
 
 jobs:
@@ -8,7 +8,8 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake bison flex llvm-14-dev libclang-14-dev libelf-dev libfl-dev
+          sudo apt-get install -y cmake bison flex llvm-14-dev libclang-14-dev \
+                                 libelf-dev libfl-dev zlib1g-dev libiberty-dev
 
       - name: Setup NDK r21e
         run: |
@@ -16,23 +17,25 @@ jobs:
           unzip -q android-ndk-r21e-linux-x86_64.zip
           echo "NDK_PATH=$(pwd)/android-ndk-r21e" >> $GITHUB_ENV
 
-      - name: 1. Build LibElf for ARM64 (The Missing Piece)
+      - name: 1. Build LibElf for ARM64 (from official source)
         run: |
-          git clone https://github.com/vbmithr/libelf.git
-          cd libelf
-          mkdir build && cd build
-          cmake .. \
-            -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-29
-          make -j$(nproc)
-          echo "LIBELF_DIR=$(pwd)" >> $GITHUB_ENV
-          echo "LIBELF_INC=$(pwd)/../lib" >> $GITHUB_ENV
+          curl -LO https://sourceware.org/elfutils/ftp/0.189/elfutils-0.189.tar.bz2
+          tar -xf elfutils-0.189.tar.bz2
+          cd elfutils-0.189
+          # We configure it for ARM64 using the NDK
+          ./configure --host=aarch64-linux-android \
+                      --prefix=$(pwd)/inst \
+                      CC=${{ env.NDK_PATH }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang \
+                      --enable-static --disable-shared
+          make -C libelf -j$(nproc)
+          echo "LIBELF_DIR=$(pwd)/libelf" >> $GITHUB_ENV
+          echo "LIBELF_INC=$(pwd)/libelf" >> $GITHUB_ENV
 
       - name: 2. Build BCC Static (Android)
         run: |
-          git clone --recursive https://github.com/iovisor/bcc.git
-          cd bcc && git checkout v0.17.0
+          curl -LO https://github.com/iovisor/bcc/archive/refs/tags/v0.17.0.tar.gz
+          tar -xf v0.17.0.tar.gz
+          cd bcc-0.17.0
           mkdir build && cd build
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
@@ -40,16 +43,18 @@ jobs:
             -DANDROID_PLATFORM=android-29 \
             -DENABLE_EXAMPLES=OFF -DENABLE_TESTS=OFF \
             -DLLVM_DIR=/usr/lib/llvm-14/lib/cmake/llvm \
-            -DLIBELF_LIBRARIES=${{ env.LIBELF_DIR }}/lib/libelf.a \
+            -DLIBELF_LIBRARIES=${{ env.LIBELF_DIR }}/libelf.a \
             -DLIBELF_INCLUDE_DIRS=${{ env.LIBELF_INC }} \
             -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH
           make -j$(nproc) bcc-static
-          echo "BCC_DIR=$(pwd)" >> $GITHUB_ENV
+          echo "BCC_BUILD_DIR=$(pwd)" >> $GITHUB_ENV
+          echo "BCC_SRC_DIR=$(pwd)/.." >> $GITHUB_ENV
 
       - name: 3. Build bpftrace v0.11.0
         run: |
-          git clone https://github.com/bpftrace/bpftrace.git
-          cd bpftrace && git fetch --tags && git checkout v0.11.0
+          curl -LO https://github.com/bpftrace/bpftrace/archive/refs/tags/v0.11.0.tar.gz
+          tar -xf v0.11.0.tar.gz
+          cd bpftrace-0.11.0
           mkdir build && cd build
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
@@ -58,9 +63,9 @@ jobs:
             -DSTATIC_LINKING=ON -DBUILD_TESTING=OFF \
             -DALLOW_UNSAFE_PROBE=ON \
             -DLLVM_DIR=/usr/lib/llvm-14/lib/cmake/llvm \
-            -DLIBBCC_LIBRARIES=${{ env.BCC_SRC }}/build/src/cpp/libbcc.a \
-            -DLIBBCC_INCLUDE_DIRS=${{ env.BCC_SRC }}/src/cpp \
-            -DLIBELF_LIBRARIES=${{ env.LIBELF_DIR }}/lib/libelf.a \
+            -DLIBBCC_LIBRARIES=${{ env.BCC_BUILD_DIR }}/src/cpp/libbcc.a \
+            -DLIBBCC_INCLUDE_DIRS=${{ env.BCC_SRC_DIR }}/src/cpp \
+            -DLIBELF_LIBRARIES=${{ env.LIBELF_DIR }}/libelf.a \
             -DLIBELF_INCLUDE_DIRS=${{ env.LIBELF_INC }} \
             -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH
           make -j$(nproc) bpftrace
@@ -69,4 +74,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bpftrace-v0.11.0-S20FE
-          path: bpftrace/build/src/bpftrace
+          path: bpftrace-0.11.0/build/src/bpftrace
