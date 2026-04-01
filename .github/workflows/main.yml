@@ -20,9 +20,10 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          # Note: In v0.11, the script was often named 'install_dependencies.sh' 
-          # or just manual apt-get commands. This command ensures the core BPF libs are there.
-          sudo apt-get install -y bpftool libbpf-dev libpcap-dev llvm-dev libclang-dev zlib1g-dev libelf-dev
+          # Install the generic linux-tools which includes bpftool
+          sudo apt-get install -y linux-tools-$(uname -r) linux-tools-generic \
+                                 libbpf-dev libpcap-dev llvm-dev libclang-dev \
+                                 zlib1g-dev libelf-dev pahole
 
       - name: Setup NDK
         run: |
