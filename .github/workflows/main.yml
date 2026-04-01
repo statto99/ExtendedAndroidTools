@@ -8,10 +8,11 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          # These are required to compile bpftrace from source
+          # Use the default LLVM/Clang versions for Ubuntu 22.04
           sudo apt-get install -y cmake iperf3 libtool-bin bison flex \
                                  libelf-dev libpcap-dev libiberty-dev \
-                                 llvm-10-dev libclang-10-dev zlib1g-dev
+                                 llvm-dev libclang-dev zlib1g-dev \
+                                 libbfd-dev libreadline-dev
 
       - name: Download bpftrace v0.11.0 Source
         run: |
@@ -28,9 +29,11 @@ jobs:
       - name: Configure and Build
         run: |
           cd ${{ env.SOURCE_DIR }}
+          
+          # Fix: Bpftrace 0.11 might need help finding LLVM on newer Ubuntu
+          # We create a build directory and run CMake
           mkdir build && cd build
           
-          # We use the NDK's built-in CMake toolchain file
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
@@ -38,9 +41,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DSTATIC_LINKING=ON \
             -DBUILD_TESTING=OFF \
-            -DALLOW_UNSAFE_PROBE=ON
+            -DALLOW_UNSAFE_PROBE=ON \
+            -DVENDOR_GTEST=ON
           
-          # Build using all available CPU cores
           make -j$(nproc) bpftrace
 
       - name: Upload bpftrace Binary
