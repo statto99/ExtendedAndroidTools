@@ -47,7 +47,9 @@ jobs:
             -DLLVM_DIR=/usr/lib/llvm-14/lib/cmake/llvm \
             -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
             -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH \
-            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
+            -DLIBELF_LIBRARIES=/usr/lib/x86_64-linux-gnu/libelf.a \
+            -DLIBELF_INCLUDE_DIRS=/usr/include
           make -j$(nproc) bcc-static
 
       - name: Build bpftrace (Android)
@@ -68,7 +70,9 @@ jobs:
             -DLLVM_DIR=/usr/lib/llvm-14/lib/cmake/llvm \
             -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
             -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH \
-            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
+            -DLIBELF_LIBRARIES=/usr/lib/x86_64-linux-gnu/libelf.a \
+            -DLIBELF_INCLUDE_DIRS=/usr/include
           
           make -j$(nproc) bpftrace
 
