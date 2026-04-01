@@ -1,46 +1,45 @@
-name: Build bpftools archives
-on: [push, pull_request, workflow_dispatch]
+name: Build bpftrace v0.11 for Android
+on: workflow_dispatch
 
 jobs:
-  build_bpftrace_static:
-    name: Build static bpftrace v0.11.0
+  build_bpftrace:
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        env:
-          - ARCH: arm64
     steps:
-      - name: Checkout bpftrace v0.11.0
+      - name: Checkout Android BPF Wrapper
         uses: actions/checkout@v4
         with:
-          repository: bpftrace/bpftrace
-          ref: v0.11.0
           submodules: recursive
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          # Install the generic linux-tools which includes bpftool
           sudo apt-get install -y linux-tools-$(uname -r) linux-tools-generic \
                                  libbpf-dev libpcap-dev llvm-dev libclang-dev \
-                                 zlib1g-dev libelf-dev pahole
+                                 zlib1g-dev libelf-dev cmake
 
-      - name: Setup NDK
+      - name: Downgrade bpftrace to v0.11.0
         run: |
-          # Downloading a slightly older NDK (r21e) is often safer for v0.11 builds
-          # but we will try with your current logic first.
+          # Move into the submodule directory and switch to the old tag
+          cd external/bpftrace
+          git fetch --tags
+          git checkout v0.11.0
+          cd ../..
+
+      - name: Setup NDK r21e
+        run: |
           curl -LO https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
           unzip -q android-ndk-r21e-linux-x86_64.zip
 
-      - name: Build Static bpftrace
+      - name: Build Static Binary
         run: |
+          # We use the wrapper's Makefile which handles the Android C library (Bionic)
           make bpftrace \
             NDK_PATH=`pwd`/android-ndk-r21e \
-            NDK_ARCH=${{ matrix.env['ARCH'] }} \
-            STATIC_LINKING=true \
-            LLVM_TARGETS="BPF;AArch64"
-            
-      - uses: actions/upload-artifact@v4
+            NDK_ARCH=arm64 \
+            STATIC_LINKING=true
+
+      - name: Upload bpftrace Binary
+        uses: actions/upload-artifact@v4
         with:
-          name: bpftrace-v0.11-android-${{ matrix.env['ARCH'] }}
-          path: out/android/${{ matrix.env['ARCH'] }}/bin/bpftrace
+          name: bpftrace-v0.11-android-arm64
+          path: out/android/arm64/bin/bpftrace
