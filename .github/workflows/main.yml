@@ -8,10 +8,9 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          # We need LLVM 14 (default for Ubuntu 22.04)
           sudo apt-get install -y cmake bison flex libelf-dev libpcap-dev \
                                  llvm-14-dev libclang-14-dev zlib1g-dev libbfd-dev \
-                                 libreadline-dev libiberty-dev
+                                 libreadline-dev libiberty-dev libffi-dev libxml2-dev
 
       - name: Setup NDK r21e
         run: |
@@ -38,7 +37,6 @@ jobs:
         run: |
           cd ${{ env.BCC_SRC }}
           mkdir build && cd build
-          # Added LLVM_DIR and CMAKE_FIND_ROOT_PATH_MODE flags
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
@@ -47,7 +45,9 @@ jobs:
             -DENABLE_EXAMPLES=OFF \
             -DENABLE_TESTS=OFF \
             -DLLVM_DIR=/usr/lib/llvm-14/lib/cmake/llvm \
-            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
+            -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH \
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH
           make -j$(nproc) bcc-static
 
       - name: Build bpftrace (Android)
@@ -66,7 +66,9 @@ jobs:
             -DLIBBCC_LIBRARIES=${{ env.BCC_SRC }}/build/src/cpp/libbcc.a \
             -DLIBBCC_INCLUDE_DIRS=${{ env.BCC_SRC }}/src/cpp \
             -DLLVM_DIR=/usr/lib/llvm-14/lib/cmake/llvm \
-            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
+            -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH \
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH
           
           make -j$(nproc) bpftrace
 
