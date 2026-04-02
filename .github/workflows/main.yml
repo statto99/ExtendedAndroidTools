@@ -1,4 +1,4 @@
-name: Build bpftrace v0.11.0 (Final)
+name: Build bpftrace v0.11.0 (Final Fix)
 on: workflow_dispatch
 
 jobs:
@@ -17,11 +17,11 @@ jobs:
           unzip -q android-ndk-r21e-linux-x86_64.zip
           echo "NDK_PATH=$(pwd)/android-ndk-r21e" >> $GITHUB_ENV
 
-      - name: 1. Build LibElf for ARM64 (Standalone)
+      - name: 1. Build LibElf-Lite (Direct ZIP)
         run: |
-          # We use a standalone libelf that doesn't require argp
-          git clone https://github.com/wolfpld/libelf-lite.git
-          cd libelf-lite
+          curl -LO https://github.com/wolfpld/libelf-lite/archive/refs/heads/master.zip
+          unzip master.zip
+          cd libelf-lite-master
           mkdir build && cd build
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
@@ -32,7 +32,7 @@ jobs:
           echo "LIBELF_DIR=$(pwd)" >> $GITHUB_ENV
           echo "LIBELF_INC=$(pwd)/.." >> $GITHUB_ENV
 
-      - name: 2. Build BCC Static (Android)
+      - name: 2. Build BCC Static (Direct Tarball)
         run: |
           curl -LO https://github.com/iovisor/bcc/archive/refs/tags/v0.17.0.tar.gz
           tar -xf v0.17.0.tar.gz
@@ -51,14 +51,16 @@ jobs:
           echo "BCC_BUILD_DIR=$(pwd)" >> $GITHUB_ENV
           echo "BCC_SRC_DIR=$(pwd)/.." >> $GITHUB_ENV
 
-      - name: 3. Build bpftrace v0.11.0
+      - name: 3. Build bpftrace v0.11.0 (Direct Tarball)
         run: |
           curl -LO https://github.com/bpftrace/bpftrace/archive/refs/tags/v0.11.0.tar.gz
           tar -xf v0.11.0.tar.gz
           cd bpftrace-0.11.0
           mkdir build && cd build
           
-          # We point to the same libelf and bcc we just built
+          # Fix: BCC expects libelf.h, so we link elf_lite.h to it
+          ln -s ${{ env.LIBELF_INC }}/elf_lite.h ${{ env.LIBELF_INC }}/libelf.h || true
+
           cmake .. \
             -DCMAKE_TOOLCHAIN_FILE=${{ env.NDK_PATH }}/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
